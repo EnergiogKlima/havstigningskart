@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="http://openlayers.org/en/v3.16.0/css/ol.css" type="text/css">
+    <style>
+      .map {
+        height: 60vh;
+		width: 50vw;
+      }
+    </style>
+    <script src="http://openlayers.org/en/v3.16.0/build/ol.js" type="text/javascript"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <title>OpenLayers3 / UTM 33</title>
+  </head>
+  <body>
+    <h2>My Map</h2>
+    <div id="map" class="map"></div>
+	<div id="info"></div>
+	<label>
+      Sea level
+      <input id="level" type="range" min="0" max="100" value="1"/>
+      +<span id="output"></span> m
+    </label>
+	<button id="lightest">Find min/max elevation</button>
+    <script type="text/javascript">
+	//start View definitions
+	var view = new ol.View({
+		projection: "EPSG:3857",
+		center: [590725.6581734803,8488853.464779368], // Bergen - nordnes
+		//center: [1193631.079073,8379514.326676],
+		//center: [-32133.847940,6734881.921477],
+		zoom: 16
+	});
+	//End View definitions
+	//Start: Map definitions
+	var map = new ol.Map({
+		target: 'map',
+		view: view
+	});
+	
+	var projExtent = ol.proj.get('EPSG:3857').getExtent();
+	var startResolution = ol.extent.getWidth(projExtent) / 256;
+	var resolutions = new Array(22);
+	for (var i = 0, ii = resolutions.length; i < ii; ++i) {
+		resolutions[i] = startResolution / Math.pow(2, i);
+	}
+	var tileGrid = new ol.tilegrid.TileGrid({
+		extent: [-2226388.001238, 7682658.084751, 5565971.942392, 16344425.524338],
+		resolutions: resolutions,
+		tileSize: [500, 500]
+	});
+	//End: Map definitions
+	//***********************
+	//Start: WMS-C Kartverket
+	var _url = "https://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?";
+	//Start: source
+	var sourceWMSC = new ol.source.WMTS({
+		url: _url,
+		layer: "norges_grunnkart",
+		crossOrigin: 'anonymous'
+	});
+	
+	var wmsSource = new ol.source.TileWMS({
+		url: 'https://hoydedata.no/arcgis/services/las_dom_skyggerelieff_somlos/ImageServer/WMSServer?',
+		params: {
+			'LAYERS': 'las_dom_skyggerelieff_somlos'
+		},
+		crossOrigin: 'anonymous'
+	});
+
+	
+	var wmsSource2 = new ol.source.ImageWMS({
+		url: 'https://hoydedata.no/arcgis/services/las_dom_somlos/ImageServer/WMSServer?',
+		params: {
+			LAYERS: "las_dom_somlos"
+		},
+		crossOrigin: 'anonymous',
+		//projection: "EPSG:3857"
+		//tileGrid: tileGrid
+	});
+	//End: source
+	//Start: layer
+	var tileLayerWMSC = new ol.layer.Tile({
+		title: "Norges grunnkart",
+		source: sourceWMSC,
+	});
+	var wmsLayer = new ol.layer.Tile({
+		source: wmsSource,
+		opacity: 0.5,
+	});
+	var wmsLayer2 = new ol.layer.Image({
+		source: wmsSource2,
+		opacity: 0.8
+	});
+	var osmTile = new ol.layer.Tile({
+		source: new ol.source.OSM(),
+	});
+	//End: layer
+	//End: WMS-C Kartverket
+	//***********************
+	// Add layers to map
+	//map.addLayer(tileLayerWMSC); //europa
+	map.addLayer(osmTile);
+	map.addLayer(wmsLayer2);
+	map.addLayer(wmsLayer);
+
+	map.on('singleclick', function(evt) {
+		document.getElementById('info').innerHTML = '';
+		var viewResolution = /** @type {number} */ (view.getResolution());
+		var url = wmsSource2.getGetFeatureInfoUrl(
+			evt.coordinate, viewResolution, 'EPSG:3857',
+			{'INFO_FORMAT': 'text/plain'});
+			console.log(evt);
+		if (url) {
+			console.log(url);
+		  document.getElementById('info').innerHTML =
+			  '<iframe seamless src="' + url + '"></iframe>';
+			fetch(url).then(function(response) {
+				return response.text();
+			  })
+			  .then(function(text) {
+				console.log('Request successful', text);
+				var doublenumber = Number(text.replace(/[^0-9\.]+/g,""));
+				console.log(doublenumber)
+			  })
+			  .catch(function(error) {
+				console.log('Request failed', error)
+			  });
+		}
+	});
+	
+	var canvas = document.querySelector(".ol-unselectable");
+	var ctx = canvas.getContext("2d");
+	var cw, ch;
+	cw = canvas.offsetWidth;
+	ch = canvas.offsetHeight;
+	//cw = 200;
+	//ch = 200;
+	var highestColor = {
+		R: 255,
+		G: 252,
+		B: 255
+	}
+	var lowestColor = {
+		R: 175,
+		G: 240,
+		B: 233
+	}
+	
+	document.getElementById('lightest').addEventListener('click', function() {
+		var imgData = ctx.getImageData(0, 0, cw, ch);
+		var data = imgData.data;
+		var highest=[];
+		var lowest=[];
+		for(var x = 0; x < cw; ++x) {
+			for(var y = 0; y < ch; ++y) {
+				var index = (y * cw + x) * 4;
+				//console.log(data[index], data[index+1], data[index+2]);
+				if(data[index+0]==highestColor.R && data[index+1]==highestColor.G && data[index+2]==highestColor.B){
+					var cx={"X":x,"Y":y}; //
+					highest.push(cx);
+				}
+				if(data[index+0]==lowestColor.R && data[index+1]==lowestColor.G && data[index+2]==lowestColor.B){
+
+					var cx={"X":x,"Y":y}; //
+					lowest.push(cx);
+				}
+			}
+		}
+		console.log("highest: ", highest);
+		console.log("lowest: ", lowest);
+		var coordinate = map.getCoordinateFromPixel([highest[0].X,highest[0].Y]);
+		document.getElementById('info').innerHTML = '';
+		var viewResolution = /** @type {number} */ (view.getResolution());
+		var url = wmsSource2.getGetFeatureInfoUrl(
+			coordinate, viewResolution, 'EPSG:3857',
+			{'INFO_FORMAT': 'text/plain'});
+		if (url) {
+			fetch(url).then(function(response) {
+				return response.text();
+			  })
+			  .then(function(text) {
+				var highestEl = Number(text.replace(/[^0-9\.]+/g,""));
+				console.log("highest: ",highestEl)
+			  })
+			  .catch(function(error) {
+				console.log('Request failed', error)
+			  });
+		}
+		
+		var coordinate = map.getCoordinateFromPixel([lowest[0].X,lowest[0].Y]);
+		var url = wmsSource2.getGetFeatureInfoUrl(
+			coordinate, viewResolution, 'EPSG:3857',
+			{'INFO_FORMAT': 'text/plain'});
+		if (url) {
+			fetch(url).then(function(response) {
+				return response.text();
+			  })
+			  .then(function(text) {
+				var lowestEl = Number(text.replace(/[^0-9\.]+/g,""));
+				console.log("lowest: ",lowestEl)
+			  })
+			  .catch(function(error) {
+				console.log('Request failed', error)
+			  });
+		}
+		
+     });
+    </script>
+  </body>
+</html>
