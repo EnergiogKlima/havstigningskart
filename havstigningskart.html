@@ -37,18 +37,25 @@
 		target: 'map',
 		view: view
 	});
+
+    var sProjection = 'EPSG:3857';
+    var extent = {
+        //'EPSG:3857': [-2226388.001238, 7682658.084751, 5565971.942392, 16344425.524338],
+        'EPSG:3857': [-20026376.39, -20048966.10, 20026376.39, 20048966.10],
+        'EPSG:32633': [-2500000, 3500000, 3045984, 9045984]
+    };
+    var projection = new ol.proj.Projection({
+        code: sProjection,
+        extent: extent[sProjection]
+    });
 	
-	var projExtent = ol.proj.get('EPSG:3857').getExtent();
-	var startResolution = ol.extent.getWidth(projExtent) / 256;
-	var resolutions = new Array(22);
-	for (var i = 0, ii = resolutions.length; i < ii; ++i) {
-		resolutions[i] = startResolution / Math.pow(2, i);
-	}
-	var tileGrid = new ol.tilegrid.TileGrid({
-		extent: [-2226388.001238, 7682658.084751, 5565971.942392, 16344425.524338],
-		resolutions: resolutions,
-		tileSize: [500, 500]
-	});
+    var projectionExtent = projection.getExtent();
+    var size = ol.extent.getWidth(projectionExtent) / 256;
+    var resolutions = [], matrixIds = [];
+    for (var z = 0; z < 21; ++z) {//Max 18?
+        resolutions[z] = size / Math.pow(2, z);
+        matrixIds[z] = sProjection+":"+z;
+    }
 	//End: Map definitions
 	//***********************
 	//Start: WMS-C Kartverket
@@ -57,10 +64,26 @@
 	var sourceWMSC = new ol.source.WMTS({
 		url: _url,
 		layer: "norges_grunnkart",
+        matrixSet: sProjection,
+		format: 'image/png',
+		projection: projection,
+        tileGrid: new ol.tilegrid.WMTS({
+			  origin: ol.extent.getTopLeft(projection.getExtent()),
+			  resolutions: resolutions,
+			  matrixIds: matrixIds
+		}),
 		crossOrigin: 'anonymous'
 	});
+
+    var grunnkartSource = new ol.source.TileWMS({
+        url: "https://openwms.statkart.no/skwms1/wms.norges_grunnkart?",
+        params: {
+			'LAYERS': 'Norges_grunnkart'
+		},
+        crossOrigin: 'anonymous'
+    })
 	
-	var wmsSource = new ol.source.TileWMS({
+	var wmsRelieffSource = new ol.source.TileWMS({
 		url: 'https://hoydedata.no/arcgis/services/las_dom_skyggerelieff_somlos/ImageServer/WMSServer?',
 		params: {
 			'LAYERS': 'las_dom_skyggerelieff_somlos'
@@ -69,7 +92,7 @@
 	});
 
 	
-	var wmsSource2 = new ol.source.ImageWMS({
+	var wmsHoydeSource = new ol.source.ImageWMS({
 		url: 'https://hoydedata.no/arcgis/services/las_dom_somlos/ImageServer/WMSServer?',
 		params: {
 			LAYERS: "las_dom_somlos"
@@ -84,13 +107,16 @@
 		title: "Norges grunnkart",
 		source: sourceWMSC,
 	});
-	var wmsLayer = new ol.layer.Tile({
-		source: wmsSource,
-		opacity: 0.5,
+    var tileLayerGrunnkart = new ol.layer.Tile({
+        source: grunnkartSource
+    })
+	var wmsRelieffLayer = new ol.layer.Tile({
+		source: wmsRelieffSource,
+		opacity: 0.2,
 	});
-	var wmsLayer2 = new ol.layer.Image({
-		source: wmsSource2,
-		opacity: 0.8
+	var wmsHoydeLayer = new ol.layer.Image({
+		source: wmsHoydeSource,
+		opacity: 1
 	});
 	var osmTile = new ol.layer.Tile({
 		source: new ol.source.OSM(),
@@ -100,14 +126,15 @@
 	//***********************
 	// Add layers to map
 	//map.addLayer(tileLayerWMSC); //europa
-	map.addLayer(osmTile);
-	map.addLayer(wmsLayer2);
-	map.addLayer(wmsLayer);
+	//map.addLayer(osmTile);
+    //map.addLayer(tileLayerGrunnkart);
+	map.addLayer(wmsHoydeLayer);
+	//map.addLayer(wmsRelieffLayer);
 
 	map.on('singleclick', function(evt) {
 		document.getElementById('info').innerHTML = '';
 		var viewResolution = /** @type {number} */ (view.getResolution());
-		var url = wmsSource2.getGetFeatureInfoUrl(
+		var url = wmsHoydeSource.getGetFeatureInfoUrl(
 			evt.coordinate, viewResolution, 'EPSG:3857',
 			{'INFO_FORMAT': 'text/plain'});
 			console.log(evt);
@@ -172,7 +199,7 @@
 		var coordinate = map.getCoordinateFromPixel([highest[0].X,highest[0].Y]);
 		document.getElementById('info').innerHTML = '';
 		var viewResolution = /** @type {number} */ (view.getResolution());
-		var url = wmsSource2.getGetFeatureInfoUrl(
+		var url = wmsHoydeSource.getGetFeatureInfoUrl(
 			coordinate, viewResolution, 'EPSG:3857',
 			{'INFO_FORMAT': 'text/plain'});
 		if (url) {
@@ -189,7 +216,7 @@
 		}
 		
 		var coordinate = map.getCoordinateFromPixel([lowest[0].X,lowest[0].Y]);
-		var url = wmsSource2.getGetFeatureInfoUrl(
+		var url = wmsHoydeSource.getGetFeatureInfoUrl(
 			coordinate, viewResolution, 'EPSG:3857',
 			{'INFO_FORMAT': 'text/plain'});
 		if (url) {
