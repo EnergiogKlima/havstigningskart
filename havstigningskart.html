@@ -320,7 +320,7 @@
                         console.log(elevations)
                         highestEl = elevations[0]
                         lowestEl = elevations[1]
-                        if (highestEl && lowestEl) {
+                        if (isNumber(highestEl) && isNumber(lowestEl) {
                             map.removeLayer(wmsHoydeDomLayer);
                             map.addLayer(tileLayerGrunnkart);
                             map.addLayer(rasterLayer);
@@ -334,6 +334,10 @@
             //});
 
         });
+
+        function isNumber(n) {
+            return !isNaN(parseFloat(n)) && isFinite(n);
+        }
 
         function flood(pixels,data) {
             var pixel = pixels[0];
