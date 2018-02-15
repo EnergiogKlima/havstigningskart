@@ -313,7 +313,7 @@
                     Promise.all(promises).then(results => {
                         let elevations = []
                         results.forEach(text => {
-                            elevation = Number(text.replace(/[^0-9\.]+/g, ""));
+                            text.includes('NoData') ? elevation = 0 : elevation = Number(text.replace(/[^0-9\.]+/g, ""));
                             elevations.push(elevation);
                             //console.log("highestPromise: ", highestEls)
                         })
