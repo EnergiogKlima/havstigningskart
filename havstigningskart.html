@@ -24,6 +24,7 @@
         <span id="output"></span> m
     </label>
     <button id="lightest">Find min/max elevation</button>
+    <div id="scale"></div>
     <script type="text/javascript">
      const elevationScale = [[175,240,233],[175,240,230],[175,240,227],[175,240,222],[175,240,220],
                             [175,240,217],[175,240,213],[177,242,212],[177,242,208],[177,242,205],
@@ -297,18 +298,13 @@
                             { 'INFO_FORMAT': 'text/plain' });
                         lowestUrls.push(url)
                     })
-                    function sleeper(ms) {
-                        return function(x) {
-                            return new Promise(resolve => setTimeout(() => resolve(x), ms));
-                        };
-                    }
                     var promises = [] 
-                    highestUrls.slice(0,1).forEach(url => {
+                    highestUrls.slice(0,2).forEach(url => {
                         promises.push(fetch(url).then(resp => resp.text()))
                     });
-                    lowestUrls.slice(0,1).forEach(url => {
-                        promises.push(fetch(url).then(resp => resp.text()))
-                    });
+                    // lowestUrls.slice(0,1).forEach(url => {
+                    //     promises.push(fetch(url).then(resp => resp.text()))
+                    // });
                     console.log("promises: ", promises)
                     Promise.all(promises).then(results => {
                         let elevations = []
@@ -318,14 +314,22 @@
                             //console.log("highestPromise: ", highestEls)
                         })
                         console.log(elevations)
-                        highestEl = elevations[0]
-                        lowestEl = elevations[1]
+                        highestEl = elevations.sort()[1]
+                        console.log("highest: " , highestEl)
+                        //lowestEl = elevations[1]
+                        lowestEl = 0;
                         if (isNumber(highestEl) && isNumber(lowestEl)) {
                             map.removeLayer(wmsHoydeDomLayer);
                             map.addLayer(tileLayerGrunnkart);
                             map.addLayer(rasterLayer);
                             map.addLayer(wmsRelieffLayer);
                             raster.changed()
+                            let rangeList = '<ul  style="display: flex; flex-wrap: wrap;">'
+                            elevationScale.forEach(function(color,i) {
+                                let height = convertRange(i, [0,elevationScale.length],[0,highestEl])
+                                rangeList += `<li style="list-style: none; padding: 10px;"><span style="color: rgb(${color});"> ${color}:</span> ${height}</li>`
+                            })
+                            document.querySelector('#scale').innerHTML = rangeList + "</ul>";
                         }
 
                     }).catch(error => console.log(error))
@@ -337,6 +341,9 @@
 
         function isNumber(n) {
             return !isNaN(parseFloat(n)) && isFinite(n);
+        }
+        var convertRange = function( value, r1, r2 ) { 
+            return ( value - r1[ 0 ] ) * ( r2[ 1 ] - r2[ 0 ] ) / ( r1[ 1 ] - r1[ 0 ] ) + r2[ 0 ];
         }
 
         function flood(pixels,data) {
@@ -373,16 +380,7 @@
         event.data.elevationScale = elevationScale;
         event.data.highestEl = highestEl;
         event.data.lowestEl = lowestEl;
-        console.log("elevations", highestEl, lowestEl)
     });
-
-    function writeMessage(canvas, message) {
-        var context = canvas.getContext('2d');
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.font = '18pt Calibri';
-        context.fillStyle = 'black';
-        context.fillText(message, 10, 25);
-      }
 
     function getMousePos(canvas, evt) {
         var rect = canvas.getBoundingClientRect();
@@ -398,7 +396,6 @@
         var mousePos = getMousePos(canvas, evt);
         var message = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
         document.getElementById('info').innerHTML = "x: " + mousePos.x + " y: " + mousePos.y
-        //writeMessage(canvas, message);
       }, false);
 
     var convertRange = function( value, r1, r2 ) { 
