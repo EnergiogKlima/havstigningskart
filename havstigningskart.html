@@ -5,8 +5,8 @@
     <link rel="stylesheet" href="http://openlayers.org/en/v3.16.0/css/ol.css" type="text/css">
     <style>
         .map {
-            height: 600px;
-            width: 700px;
+            height: 30vh;
+            width: 30vw;
         }
     </style>
     <script src="http://openlayers.org/en/v3.16.0/build/ol.js" type="text/javascript"></script>
@@ -16,16 +16,28 @@
 
 <body>
     <h2>Havstigningskart</h2>
-    <div id="map" class="map"></div>
+    <div id="map" class="map"></div> <!-- the map -->
     <div id="info"></div>
     <label>
         Sea level
-        <input id="level" type="range" step="0.1" min="0" max="20" value="1" /> +
+        <input id="level" type="range" step="0.1" min="0" max="40" value="0" /> +
         <span id="output"></span> m
     </label>
     <button id="lightest">Find min/max elevation</button>
+    <button class="btn">Increment</button>
     <div id="scale"></div>
+
     <script type="text/javascript">
+
+    $("#level").on('change',function () {
+        var value = $(this).val();
+        output.innerText = value
+        raster.changed()
+    });
+    $('.btn').click(function() {
+        $("#level").val(parseInt($("#level").val())+1);  
+        $("#level").trigger('change');
+    });
      const elevationScale = [[175,240,233],[175,240,230],[175,240,227],[175,240,222],[175,240,220],
                             [175,240,217],[175,240,213],[177,242,212],[177,242,208],[177,242,205],
                             [177,242,201],[177,242,198],[177,242,195],[176,245,191],[176,245,188],
@@ -72,13 +84,11 @@
                             [212,210,212],[214,212,214],[217,215,217],[217,215,217],[219,217,219],
                             [222,220,222],[224,222,224],[227,225,227],[230,227,230],[232,230,232],
                             [235,232,235],[237,235,237],[240,237,240],[242,240,242],[245,242,245],
-                            [247,245,247],[250,247,250],[252,250,252],[255,252,255]];
+                            [247,245,247],[250,247,250],[252,250,252],[255,252,255]]
         //start View definitions
         var view = new ol.View({
             projection: "EPSG:3857",
             center: [590725.6581734803, 8488853.464779368], // Bergen - nordnes
-            //center: [1193631.079073,8379514.326676],
-            //center: [-32133.847940,6734881.921477],
             zoom: 16
         });
         //End View definitions
@@ -90,9 +100,7 @@
 
         var sProjection = 'EPSG:3857';
         var extent = {
-            //'EPSG:3857': [-2226388.001238, 7682658.084751, 5565971.942392, 16344425.524338],
             'EPSG:3857': [-20026376.39, -20048966.10, 20026376.39, 20048966.10],
-            'EPSG:32633': [-2500000, 3500000, 3045984, 9045984]
         };
         var projection = new ol.proj.Projection({
             code: sProjection,
@@ -108,23 +116,6 @@
         }
         //End: Map definitions
         //***********************
-        //Start: WMS-C Kartverket
-        var _url = "https://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?";
-        //Start: source
-        var sourceWMSC = new ol.source.WMTS({
-            url: _url,
-            layer: "norges_grunnkart",
-            matrixSet: sProjection,
-            format: 'image/png',
-            projection: projection,
-            tileGrid: new ol.tilegrid.WMTS({
-                origin: ol.extent.getTopLeft(projection.getExtent()),
-                resolutions: resolutions,
-                matrixIds: matrixIds
-            }),
-            crossOrigin: 'anonymous'
-        });
-
         var grunnkartSource = new ol.source.TileWMS({
             url: "https://openwms.statkart.no/skwms1/wms.norges_grunnkart?",
             params: {
@@ -169,10 +160,6 @@
         });
         //End: source
         //Start: layer
-        var tileLayerWMSC = new ol.layer.Tile({
-            title: "Norges grunnkart",
-            source: sourceWMSC,
-        });
         var tileLayerGrunnkart = new ol.layer.Tile({
             source: grunnkartSource
         })
@@ -199,7 +186,6 @@
         //End: WMS-C Kartverket
         //***********************
         // Add layers to map
-        //map.addLayer(tileLayerWMSC); //europa
         //map.addLayer(osmTile);
         map.addLayer(tileLayerGrunnkart);
         //map.addLayer(wmsHoydeDtmLayer);
@@ -209,7 +195,7 @@
         map.on('singleclick', function (evt) {
             document.getElementById('info').innerHTML = '';
             var viewResolution = /** @type {number} */ (view.getResolution());
-            var url = wmsHoydeDtmSource.getGetFeatureInfoUrl(
+            var url = wmsHoydeDomSource.getGetFeatureInfoUrl(
                 evt.coordinate, viewResolution, 'EPSG:3857',
                 { 'INFO_FORMAT': 'text/plain' });
             if (url) {
@@ -241,13 +227,12 @@
         var highestEl;
         var lowestEl;
 
-
         document.getElementById('lightest').addEventListener('click', function () {
         //map.on('moveend', function() {
             map.removeLayer(tileLayerGrunnkart);
             map.removeLayer(rasterLayer);
             map.removeLayer(wmsRelieffLayer);
-            map.addLayer(wmsHoydeDtmLayer);
+            map.addLayer(wmsHoydeDomLayer);
             //wmsHoydeSource.on('imageloadend', function (e) {
                 setTimeout(() => {
                     
@@ -284,10 +269,9 @@
                     let lowestEls = [];
 
                     highest.forEach(highestCoord => {
-                        //console.log(highestCoord);
                         var coordinate = map.getCoordinateFromPixel([highestCoord.X, highestCoord.Y]);
                         document.getElementById('info').innerHTML = '';
-                        var url = wmsHoydeDtmSource.getGetFeatureInfoUrl(
+                        var url = wmsHoydeDomSource.getGetFeatureInfoUrl(
                             coordinate, viewResolution, 'EPSG:3857',
                             { 'INFO_FORMAT': 'text/plain' });
                         highestUrls.push(url);
@@ -295,31 +279,34 @@
 
                     lowest.slice(0,5).forEach(lowestCoord => {
                         var coordinate = map.getCoordinateFromPixel([lowestCoord.X, lowestCoord.Y]);
-                        var url = wmsHoydeDtmSource.getGetFeatureInfoUrl(
+                        var url = wmsHoydeDomSource.getGetFeatureInfoUrl(
                             coordinate, viewResolution, 'EPSG:3857',
                             { 'INFO_FORMAT': 'text/plain' });
                         lowestUrls.push(url)
                     })
-                    var promises = [] 
-                    highestUrls.slice(0,2).forEach(url => {
-                        promises.push(fetch(url).then(resp => resp.text()))
-                    });
-                    // lowestUrls.slice(0,1).forEach(url => {
-                    //     promises.push(fetch(url).then(resp => resp.text()))
-                    // });
-                    console.log("promises: ", promises)
-                    Promise.all(promises).then(results => {
+
+                    let urls = highestUrls.slice(0,5)
+                    urls.push(lowestUrls.slice(0,5))
+                    getHeights(urls)
+
+                    async function getHeights(urls) {
+                        let results =  []
+                        for(const url of urls) {
+                            result = await fetch(url).then(resp => resp.text())
+                            console.log('fetching height-data')
+                            results.push(result)
+                        }
                         let elevations = []
                         results.forEach(text => {
                             text.includes('NoData') ? elevation = 0 : elevation = Number(text.replace(/[^0-9\.]+/g, ""));
                             elevations.push(elevation);
-                            //console.log("highestPromise: ", highestEls)
                         })
+                        elevations = elevations.sort(function(a, b){return a-b})
                         console.log(elevations)
-                        highestEl = elevations.sort()[1]
+                        highestEl = elevations.pop()
                         console.log("highest: " , highestEl)
-                        //lowestEl = elevations[1]
-                        lowestEl = 0;
+                        lowestEl = elevations[0]
+                        console.log('lowest: ', lowestEl)
                         if (isNumber(highestEl) && isNumber(lowestEl)) {
                             map.removeLayer(wmsHoydeDomLayer);
                             map.addLayer(tileLayerGrunnkart);
@@ -328,17 +315,14 @@
                             raster.changed()
                             let rangeList = '<ul  style="display: flex; flex-wrap: wrap;">'
                             elevationScale.forEach(function(color,i) {
-                                let height = convertRange(i, [0,elevationScale.length],[0,highestEl])
+                                let height = convertRange(i, [0,elevationScale.length],[lowestEl,highestEl])
                                 rangeList += `<li style="list-style: none; padding: 10px;"><span style="color: rgb(${color});"> ${color}:</span> ${height}</li>`
                             })
                             document.querySelector('#scale').innerHTML = rangeList + "</ul>";
                         }
-
-                    }).catch(error => console.log(error))
-
+                    }
                 }, 1000);
             //});
-
         });
 
         function isNumber(n) {
